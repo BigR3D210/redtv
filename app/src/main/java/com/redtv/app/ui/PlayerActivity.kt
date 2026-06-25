@@ -83,7 +83,6 @@ class PlayerActivity : AppCompatActivity() {
             .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
             .setLoadControl(loadControl)
             .build()
-        p.setWakeMode(C.WAKE_MODE_NETWORK)
 
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
