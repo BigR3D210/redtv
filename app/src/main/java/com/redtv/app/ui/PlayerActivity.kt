@@ -3,6 +3,7 @@ package com.redtv.app.ui
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -52,6 +53,10 @@ class PlayerActivity : AppCompatActivity() {
         setContentView(b.root)
         prefs = Prefs(this)
 
+        // Keep the TV awake while watching (stops the Fire TV screensaver).
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        b.playerView.keepScreenOn = true
+
         ids = intent.getStringArrayListExtra(EXTRA_IDS) ?: arrayListOf()
         index = intent.getIntExtra(EXTRA_INDEX, 0).coerceIn(0, (ids.size - 1).coerceAtLeast(0))
     }
@@ -78,6 +83,7 @@ class PlayerActivity : AppCompatActivity() {
             .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
             .setLoadControl(loadControl)
             .build()
+        p.setWakeMode(C.WAKE_MODE_NETWORK)
 
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
@@ -108,7 +114,7 @@ class PlayerActivity : AppCompatActivity() {
         p.setMediaItem(MediaItem.fromUri(ch.streamUrl))
         p.prepare()
 
-        if (ch.id.startsWith("movie_")) {
+        if (ch.id.startsWith("movie_") || ch.id.startsWith("ep_")) {
             val pos = prefs.resumePosition(ch.id)
             if (pos > 0) p.seekTo(pos)
         }
@@ -195,7 +201,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun saveResume() {
         val ch = currentChannel() ?: return
         val p = player ?: return
-        if (ch.id.startsWith("movie_")) {
+        if (ch.id.startsWith("movie_") || ch.id.startsWith("ep_")) {
             prefs.setResumePosition(ch.id, p.currentPosition)
         }
     }

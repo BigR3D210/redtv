@@ -2,11 +2,6 @@ package com.redtv.app.model
 
 import com.google.gson.annotations.SerializedName
 
-/**
- * Account config. You host this JSON at a URL you control (GitHub raw, Firebase,
- * any static host) and paste that URL into the app once. Edit the file online to
- * change channels or login info; the app re-reads it on every launch.
- */
 data class RemoteConfig(
     @SerializedName("accountId") val accountId: String? = null,
     @SerializedName("appName") val appName: String? = null,
@@ -15,7 +10,6 @@ data class RemoteConfig(
 )
 
 data class Source(
-    /** "xtream" or "m3u" */
     @SerializedName("type") val type: String = "m3u",
     @SerializedName("m3uUrl") val m3uUrl: String? = null,
     @SerializedName("epgUrl") val epgUrl: String? = null,
@@ -26,7 +20,18 @@ data class Source(
     fun isXtream() = type.equals("xtream", ignoreCase = true)
 }
 
-/** A single playable item (live channel, movie, or series episode entry). */
+/** Sections the home screen is split into. */
+object Section {
+    const val LIVE = "live"
+    const val MOVIES = "movie"
+    const val SERIES = "series"
+    const val SPORTS = "sports"
+}
+
+/**
+ * A single tile. Covers live channels, movies, series (as a folder), and episodes.
+ * For a series folder, streamUrl is empty and id starts with "series_".
+ */
 data class Channel(
     val id: String,
     val name: String,
@@ -34,18 +39,10 @@ data class Channel(
     val logoUrl: String? = null,
     val category: String = "Uncategorized",
     val epgChannelId: String? = null,
-    val number: Int? = null
+    val number: Int? = null,
+    val section: String = Section.LIVE
 )
 
-data class Category(
-    val id: String,
-    val name: String
-)
-
-/**
- * A saved source ("profile"). Either points to a remote config URL or holds a
- * manually-entered config. Lets the app keep multiple providers and switch fast.
- */
 data class SourceProfile(
     val id: String,
     val name: String,
@@ -53,7 +50,6 @@ data class SourceProfile(
     val manual: RemoteConfig? = null
 )
 
-/** One EPG programme entry parsed from XMLTV. */
 data class EpgProgram(
     val channelId: String,
     val title: String,

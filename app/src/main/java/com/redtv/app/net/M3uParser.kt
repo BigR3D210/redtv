@@ -1,14 +1,27 @@
 package com.redtv.app.net
 
 import com.redtv.app.model.Channel
+import com.redtv.app.model.Section
 
-/**
- * Parses an M3U / M3U8 playlist into Channel objects.
- * Supports the common extended attributes: tvg-id, tvg-logo, tvg-name, group-title.
- */
+/** Parses M3U / M3U8 playlists and classifies each entry into a section by its group name. */
 object M3uParser {
 
     private val attrRegex = Regex("([\\w-]+)=\"([^\"]*)\"")
+
+    private val sportsKw = listOf("sport", "ppv", "espn", "dazn", "ufc", "nfl", "nba", "mlb",
+        "nhl", "fight", "boxing", "wwe", "event", "racing", "soccer", "football", "tennis", "golf")
+    private val movieKw = listOf("vod", "movie", "movies", "film", "cinema")
+    private val seriesKw = listOf("series", "serie", "season", "show")
+
+    private fun sectionFor(group: String): String {
+        val g = group.lowercase()
+        return when {
+            sportsKw.any { g.contains(it) } -> Section.SPORTS
+            seriesKw.any { g.contains(it) } -> Section.SERIES
+            movieKw.any { g.contains(it) } -> Section.MOVIES
+            else -> Section.LIVE
+        }
+    }
 
     fun parse(content: String): List<Channel> {
         val lines = content.lineSequence().map { it.trim() }.iterator()
@@ -20,26 +33,25 @@ object M3uParser {
             val line = lines.next()
             if (line.isEmpty()) continue
             when {
-                line.startsWith("#EXTINF", ignoreCase = true) -> {
-                    pending = parseExtInf(line)
-                }
+                line.startsWith("#EXTINF", ignoreCase = true) -> pending = parseExtInf(line)
                 line.startsWith("#EXTGRP", ignoreCase = true) -> {
                     val grp = line.substringAfter(":", "").trim()
                     if (grp.isNotEmpty() && pending != null) pending = pending.copy(group = grp)
                 }
-                line.startsWith("#") -> { /* ignore other tags */ }
+                line.startsWith("#") -> {}
                 else -> {
-                    // This is a stream URL line
                     val p = pending
                     if (p != null) {
+                        val group = p.group.ifBlank { "Uncategorized" }
                         out.add(
                             Channel(
                                 id = (p.tvgId?.takeIf { it.isNotBlank() } ?: "ch_$idx"),
                                 name = p.name.ifBlank { "Channel ${idx + 1}" },
                                 streamUrl = line,
                                 logoUrl = p.logo,
-                                category = p.group.ifBlank { "Uncategorized" },
-                                epgChannelId = p.tvgId
+                                category = group,
+                                epgChannelId = p.tvgId,
+                                section = sectionFor(group)
                             )
                         )
                         idx++
@@ -51,12 +63,7 @@ object M3uParser {
         return out
     }
 
-    private data class Pending(
-        val name: String,
-        val tvgId: String?,
-        val logo: String?,
-        val group: String
-    )
+    private data class Pending(val name: String, val tvgId: String?, val logo: String?, val group: String)
 
     private fun parseExtInf(line: String): Pending {
         val attrs = HashMap<String, String>()

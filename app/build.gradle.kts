@@ -6,13 +6,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// Release signing is optional. If you create keystore.properties (see
-// keystore.properties.example) the release build is signed automatically.
 val keystorePropsFile = rootProject.file("keystore.properties")
 val hasKeystore = keystorePropsFile.exists()
 val keystoreProps = Properties().apply {
     if (hasKeystore) FileInputStream(keystorePropsFile).use { load(it) }
 }
+
+// Build number is injected by CI (-PbuildNumber=<run>) so the in-app updater can compare versions.
+val ciBuildNumber = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 0
 
 android {
     namespace = "com.redtv.app"
@@ -20,10 +21,14 @@ android {
 
     defaultConfig {
         applicationId = "com.redtv.app"
-        minSdk = 21          // Fire TV Stick (gen 2+) and most Android TV boxes
+        minSdk = 21
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+
+        buildConfigField("int", "BUILD_NUMBER", "$ciBuildNumber")
+        buildConfigField("String", "GH_OWNER", "\"BigR3D210\"")
+        buildConfigField("String", "GH_REPO", "\"redtv\"")
     }
 
     signingConfigs {
@@ -40,10 +45,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (hasKeystore) signingConfig = signingConfigs.getByName("release")
         }
     }
@@ -52,11 +54,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
@@ -68,20 +69,18 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.leanback:leanback:1.0.0")
 
-    // Coroutines + lifecycle
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.activity:activity-ktx:1.9.1")
 
-    // Media3 / ExoPlayer
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
 
-    // Networking + JSON
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.11.0")
-
-    // Image loading (channel logos)
     implementation("io.coil-kt:coil:2.7.0")
+
+    // Tiny embedded web server for the "edit from laptop" pairing screen
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 }
