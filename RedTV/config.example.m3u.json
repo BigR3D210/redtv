@@ -1,0 +1,10 @@
+{
+  "accountId": "red-001",
+  "appName": "Red TV",
+  "userAgent": "RedTV/1.0 (Android)",
+  "source": {
+    "type": "m3u",
+    "m3uUrl": "https://iptv-org.github.io/iptv/index.m3u",
+    "epgUrl": ""
+  }
+}

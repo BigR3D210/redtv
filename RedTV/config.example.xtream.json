@@ -1,0 +1,12 @@
+{
+  "accountId": "red-001",
+  "appName": "Red TV",
+  "userAgent": "RedTV/1.0 (Android)",
+  "source": {
+    "type": "xtream",
+    "host": "http://your-provider.com:8080",
+    "username": "YOUR_USERNAME",
+    "password": "YOUR_PASSWORD",
+    "epgUrl": "http://your-provider.com:8080/xmltv.php?username=YOUR_USERNAME&password=YOUR_PASSWORD"
+  }
+}

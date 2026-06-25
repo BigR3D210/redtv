@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Red TV - Account Config Editor</title>
+<style>
+  :root{--bg:#0E0F13;--card:#1A1C22;--surface:#23262E;--line:#333;--accent:#E50914;--txt:#fff;--mut:#A8AEBC}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);line-height:1.5}
+  .wrap{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-size:26px;margin:0 0 4px} h1 span{color:var(--accent)}
+  p.sub{color:var(--mut);margin:0 0 24px;font-size:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
+  label{display:block;font-size:13px;color:var(--mut);margin:14px 0 6px;font-weight:600}
+  input,select{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--txt);font-size:14px}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row{display:flex;gap:12px}.row>div{flex:1}
+  .seg{display:flex;gap:8px;margin-top:6px}
+  .seg button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--txt);cursor:pointer;font-size:14px}
+  .seg button.active{background:var(--accent);border-color:var(--accent);font-weight:700}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .btn{padding:12px 18px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-size:14px}
+  .btn.ghost{background:var(--surface);border:1px solid var(--line)}
+  pre{background:#0a0b0e;border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto;font-size:13px;color:#cfe}
+  .hide{display:none}
+  .hint{font-size:12px;color:var(--mut);margin-top:6px}
+  textarea{width:100%;min-height:90px;background:var(--surface);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:monospace;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span>Red</span> TV — Config Editor</h1>
+  <p class="sub">Fill this in, then <b>Download config.json</b> and upload it to your host (GitHub, Firebase, any static host). Paste that file's URL into the app once. Edit + re-upload anytime to change channels or login — the app re-reads on next launch.</p>
+
+  <div class="card">
+    <label>Account ID (any label for you)</label>
+    <input id="accountId" placeholder="red-001" />
+
+    <label>App name shown on screen</label>
+    <input id="appName" placeholder="Red TV" />
+
+    <label>Source type</label>
+    <div class="seg">
+      <button id="segM3u" class="active" onclick="setType('m3u')">M3U Playlist</button>
+      <button id="segXt" onclick="setType('xtream')">Xtream Login</button>
+    </div>
+
+    <div id="m3uFields">
+      <label>M3U / M3U8 URL</label>
+      <input id="m3uUrl" placeholder="https://provider.com/get.php?username=...&type=m3u_plus" />
+    </div>
+
+    <div id="xtreamFields" class="hide">
+      <label>Host (include http:// and port)</label>
+      <input id="host" placeholder="http://line.provider.com:8080" />
+      <div class="row">
+        <div><label>Username</label><input id="username" /></div>
+        <div><label>Password</label><input id="password" /></div>
+      </div>
+    </div>
+
+    <label>EPG / XMLTV URL (optional — enables the TV guide)</label>
+    <input id="epgUrl" placeholder="http://provider.com/xmltv.php?username=...&password=..." />
+
+    <label>User-Agent (optional — some providers require a specific one)</label>
+    <input id="userAgent" placeholder="RedTV/1.0 (Android)" />
+  </div>
+
+  <div class="card">
+    <label style="margin-top:0">Live config.json preview</label>
+    <pre id="preview"></pre>
+    <div class="actions">
+      <button class="btn" onclick="download()">Download config.json</button>
+      <button class="btn ghost" onclick="copyJson()">Copy JSON</button>
+    </div>
+    <label>Load an existing config to edit (paste JSON, then Apply)</label>
+    <textarea id="loadBox" placeholder='{"source":{"type":"m3u","m3uUrl":"..."}}'></textarea>
+    <div class="actions"><button class="btn ghost" onclick="applyLoaded()">Apply pasted JSON</button></div>
+  </div>
+</div>
+
+<script>
+let type = 'm3u';
+const $ = id => document.getElementById(id);
+const ids = ['accountId','appName','m3uUrl','host','username','password','epgUrl','userAgent'];
+ids.forEach(i => $(i).addEventListener('input', render));
+
+function setType(t){
+  type = t;
+  $('segM3u').classList.toggle('active', t==='m3u');
+  $('segXt').classList.toggle('active', t==='xtream');
+  $('m3uFields').classList.toggle('hide', t!=='m3u');
+  $('xtreamFields').classList.toggle('hide', t!=='xtream');
+  render();
+}
+
+function build(){
+  const src = { type };
+  if(type==='m3u'){ if($('m3uUrl').value.trim()) src.m3uUrl = $('m3uUrl').value.trim(); }
+  else { ['host','username','password'].forEach(k=>{ if($(k).value.trim()) src[k]=$(k).value.trim(); }); }
+  if($('epgUrl').value.trim()) src.epgUrl = $('epgUrl').value.trim();
+  const cfg = { source: src };
+  if($('accountId').value.trim()) cfg.accountId = $('accountId').value.trim();
+  if($('appName').value.trim()) cfg.appName = $('appName').value.trim();
+  if($('userAgent').value.trim()) cfg.userAgent = $('userAgent').value.trim();
+  // order keys nicely
+  return { accountId:cfg.accountId, appName:cfg.appName, userAgent:cfg.userAgent, source:cfg.source };
+}
+
+function render(){ $('preview').textContent = JSON.stringify(build(), null, 2); }
+
+function download(){
+  const blob = new Blob([JSON.stringify(build(),null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'config.json'; a.click();
+}
+function copyJson(){ navigator.clipboard.writeText(JSON.stringify(build(),null,2)); }
+
+function applyLoaded(){
+  try{
+    const c = JSON.parse($('loadBox').value);
+    $('accountId').value = c.accountId||''; $('appName').value = c.appName||''; $('userAgent').value = c.userAgent||'';
+    const s = c.source||{};
+    setType((s.type==='xtream')?'xtream':'m3u');
+    $('m3uUrl').value = s.m3uUrl||''; $('host').value=s.host||''; $('username').value=s.username||''; $('password').value=s.password||''; $('epgUrl').value=s.epgUrl||'';
+    render();
+  }catch(e){ alert('Invalid JSON: '+e.message); }
+}
+render();
+</script>
+</body>
+</html>
