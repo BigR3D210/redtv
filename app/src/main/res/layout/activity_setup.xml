@@ -48,6 +48,18 @@
             android:textColor="@color/text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnPhoneSetup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_button"
+            android:minWidth="240dp"
+            android:padding="14dp"
+            android:text="Set up from phone / laptop"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp" />
     </LinearLayout>
 
     <!-- ===== Step 1: Choose source type ===== -->

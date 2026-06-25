@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
         b.channelGrid.adapter = channelAdapter
         b.channelGrid.setHasFixedSize(true)
         b.channelGrid.setItemViewCacheSize(24)
+        b.channelGrid.itemAnimator = null
         b.categoryList.layoutManager = LinearLayoutManager(this)
         b.sectionList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         b.sectionList.adapter = CategoryAdapter(sectionLabels, R.layout.item_section) { idx -> onSection(idx) }

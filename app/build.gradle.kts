@@ -32,6 +32,14 @@ android {
     }
 
     signingConfigs {
+        // Fixed debug key committed to the repo so every CI build shares one signature
+        // (lets adb -r and the in-app updater upgrade in place).
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (hasKeystore) {
             create("release") {
                 storeFile = file(keystoreProps["storeFile"] as String)
@@ -83,4 +91,7 @@ dependencies {
 
     // Tiny embedded web server for the "edit from laptop" pairing screen
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+
+    // QR code generation for pairing
+    implementation("com.google.zxing:core:3.5.3")
 }

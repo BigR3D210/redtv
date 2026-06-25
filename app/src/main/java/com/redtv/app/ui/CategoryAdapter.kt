@@ -6,7 +6,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.redtv.app.R
 
-/** Reusable selectable text list. Used vertically (categories) and horizontally (sections). */
+/** Reusable selectable text list. Selection happens on CLICK (keeps D-pad scrolling smooth). */
 class CategoryAdapter(
     private val items: List<String>,
     private val layoutRes: Int = R.layout.item_category,
@@ -15,14 +15,6 @@ class CategoryAdapter(
 
     var selectedIndex = 0
         private set
-
-    fun setSelected(i: Int) {
-        if (i == selectedIndex) return
-        val old = selectedIndex
-        selectedIndex = i
-        notifyItemChanged(old)
-        notifyItemChanged(i)
-    }
 
     inner class VH(val text: TextView) : RecyclerView.ViewHolder(text)
 
@@ -36,17 +28,14 @@ class CategoryAdapter(
     override fun onBindViewHolder(holder: VH, position: Int) {
         holder.text.text = items[position]
         holder.text.isSelected = position == selectedIndex
-        holder.text.setOnClickListener { select(position) }
-        holder.text.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) select(position) }
-    }
-
-    private fun select(position: Int) {
-        if (position != selectedIndex) {
-            val old = selectedIndex
-            selectedIndex = position
-            notifyItemChanged(old)
-            notifyItemChanged(position)
+        holder.text.setOnClickListener {
+            if (position != selectedIndex) {
+                val old = selectedIndex
+                selectedIndex = position
+                notifyItemChanged(old)
+                notifyItemChanged(position)
+            }
+            onSelected(position)
         }
-        onSelected(position)
     }
 }

@@ -8,3 +8,7 @@
 app/build/
 .externalNativeBuild
 .cxx/
+# Signing secrets - never commit the release keystore
+keystore.properties
+*.jks
+# The debug keystore IS committed on purpose (stable signature for updates)

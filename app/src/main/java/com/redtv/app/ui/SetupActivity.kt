@@ -51,6 +51,7 @@ class SetupActivity : AppCompatActivity() {
 
     private fun wireButtons() {
         b.btnStart.setOnClickListener { showStep(1); b.btnChoiceUrl.requestFocus() }
+        b.btnPhoneSetup.setOnClickListener { startActivity(android.content.Intent(this, EditOnLaptopActivity::class.java)) }
         b.btnBack1.setOnClickListener { showStep(0) }
 
         b.btnChoiceUrl.setOnClickListener { pickChoice("url") }
