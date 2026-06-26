@@ -21,27 +21,28 @@ class CastServer(
             val files = HashMap<String, String>()
             if (session.method == Method.POST) session.parseBody(files)
             val p = session.parms
-            if (p["code"] != code) return page(body(if (session.method == Method.POST) "Wrong code." else null))
+            val isPost = session.method == Method.POST
+            if (p["code"] != code) return page(body(if (isPost) "Wrong code." else null))
 
-            if (session.method == Method.POST) {
-                when (p["action"]) {
-                    "url" -> {
-                        val url = (p["url"] ?: "").trim()
-                        if (url.isNotEmpty()) { onPlay(url, "Cast link"); return page(okBody("Playing your link on the TV ✓")) }
-                        return page(body("Enter a link."))
+            // "url" action works on GET or POST so the link always parses reliably.
+            when (p["action"]) {
+                "url" -> {
+                    val url = (p["url"] ?: "").trim()
+                    if (url.isNotEmpty()) { onPlay(url, "Cast link"); return page(okBody("Playing your link on the TV ✓")) }
+                    return page(body("Enter a link."))
+                }
+                "file" -> {
+                    if (!isPost) return page(body(null))
+                    val tmp = files["file"]
+                    val name = (p["file"] ?: "video").substringAfterLast('/')
+                    if (tmp != null && File(tmp).exists()) {
+                        val ext = name.substringAfterLast('.', "mp4")
+                        val dest = File(cacheDir, "cast_${System.currentTimeMillis()}.$ext")
+                        File(tmp).copyTo(dest, overwrite = true)
+                        onPlay("file://${dest.absolutePath}", name)
+                        return page(okBody("Sent \"${esc(name)}\" to the TV ✓"))
                     }
-                    "file" -> {
-                        val tmp = files["file"]
-                        val name = (p["file"] ?: "video").substringAfterLast('/')
-                        if (tmp != null && File(tmp).exists()) {
-                            val ext = name.substringAfterLast('.', "mp4")
-                            val dest = File(cacheDir, "cast_${System.currentTimeMillis()}.$ext")
-                            File(tmp).copyTo(dest, overwrite = true)
-                            onPlay("file://${dest.absolutePath}", name)
-                            return page(okBody("Sent \"${esc(name)}\" to the TV ✓"))
-                        }
-                        return page(body("No file received."))
-                    }
+                    return page(body("No file received."))
                 }
             }
             page(body(null))
@@ -55,10 +56,10 @@ class CastServer(
         return """
             <h2>Cast to TV</h2>$e
             <h3>Paste a video link</h3>
-            <form method="post">
+            <form method="get">
               <input type="hidden" name="code" value="$code"/>
               <input type="hidden" name="action" value="url"/>
-              <input name="url" placeholder="https://… .mp4 / .m3u8 / .mkv / .ts"/>
+              <input name="url" placeholder="https://... .mp4 / .m3u8 / .mkv / .ts"/>
               <button type="submit">Play link on TV</button>
             </form>
             <h3>Or send a file from this device</h3>
@@ -72,13 +73,13 @@ class CastServer(
         """.trimIndent()
     }
 
-    private fun okBody(msg: String) = "<h2>$msg</h2><a href='?code=$code'>← cast another</a>"
+    private fun okBody(msg: String) = "<h2>$msg</h2><a href='?code=$code'>back &mdash; cast another</a>"
 
     private fun page(b: String): Response = newFixedLengthResponse(
         Status.OK, "text/html",
         """
         <!doctype html><html><head><meta charset="utf-8"/>
-        <meta name="viewport" content="width=device-width, initial-scale=1"/><title>Cast — Red TV</title><style>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/><title>Cast - Red TV</title><style>
         body{font-family:system-ui,sans-serif;background:#0E0F13;color:#fff;max-width:520px;margin:0 auto;padding:20px}
         h2{color:#E50914}h3{margin-top:22px;color:#fff}.hint{color:#A8AEBC;font-size:13px}
         input{width:100%;padding:11px;border-radius:8px;border:1px solid #333;background:#23262E;color:#fff;font-size:15px;box-sizing:border-box;margin-top:6px}

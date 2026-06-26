@@ -23,6 +23,10 @@ object ContentRepository {
     @Volatile var epg: Map<String, List<EpgProgram>> = emptyMap(); private set
     @Volatile var config: RemoteConfig? = null; private set
 
+    /** Non-null if Movies/Series failed to load (provider error), so the home can explain the blank. */
+    @Volatile var moviesError: String? = null
+    @Volatile var seriesError: String? = null
+
     /** Episodes of the series currently being browsed (so the player can resolve them). */
     @Volatile var currentEpisodes: List<Channel> = emptyList()
 
@@ -41,6 +45,13 @@ object ContentRepository {
         else -> live
     }
 
+    /** Human-readable reason a section failed to load, if any. */
+    fun sectionError(section: String): String? = when (section) {
+        Section.MOVIES -> moviesError
+        Section.SERIES -> seriesError
+        else -> null
+    }
+
     fun categoriesFor(section: String): List<String> =
         sectionItems(section).map { it.category }.distinct().sortedBy { it.lowercase() }
 
@@ -57,11 +68,15 @@ object ContentRepository {
         val all: List<Channel>
         if (cfg.source.isXtream()) {
             all = XtreamClient.load(cfg.source)
-            series = runCatching { XtreamClient.loadSeries(cfg.source) }.getOrDefault(emptyList())
+            moviesError = XtreamClient.lastVodError
+            series = try {
+                XtreamClient.loadSeries(cfg.source).also { seriesError = null }
+            } catch (e: Exception) { seriesError = e.message ?: e.toString(); emptyList() }
         } else {
             val url = cfg.source.m3uUrl ?: error("No M3U URL in config")
             all = M3uParser.parse(Http.getString(url))
             series = all.filter { it.section == Section.SERIES }
+            moviesError = null; seriesError = null
         }
         live = all.filter { it.section == Section.LIVE }
         movies = all.filter { it.section == Section.MOVIES }

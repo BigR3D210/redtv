@@ -48,22 +48,26 @@ class CastActivity : AppCompatActivity() {
     }
 
     private fun handlePlay(mediaUrl: String, name: String) {
+        b.statusText.text = "Link received: $mediaUrl"
         if (mediaUrl.startsWith("magnet:", true) || mediaUrl.endsWith(".torrent", true)) {
             startTorrent(mediaUrl)
         } else {
-            b.statusText.text = "Now playing: $name"
             launchPlayer(mediaUrl, name)
         }
     }
 
     private fun launchPlayer(mediaUrl: String, name: String) {
-        startActivity(Intent(this, PlayerActivity::class.java)
-            .putExtra(PlayerActivity.EXTRA_URL, mediaUrl)
-            .putExtra(PlayerActivity.EXTRA_NAME, name))
+        try {
+            startActivity(Intent(this, PlayerActivity::class.java)
+                .putExtra(PlayerActivity.EXTRA_URL, mediaUrl)
+                .putExtra(PlayerActivity.EXTRA_NAME, name))
+        } catch (e: Exception) {
+            b.statusText.text = "Couldn't open player: ${e.message}"
+        }
     }
 
     private fun startTorrent(magnet: String) {
-        b.statusText.text = "Preparing torrent… finding peers"
+        b.statusText.text = "Preparing torrent... finding peers"
         val options = TorrentOptions.Builder()
             .saveLocation(cacheDir)
             .removeFilesAfterStop(true)
@@ -76,13 +80,13 @@ class CastActivity : AppCompatActivity() {
             override fun onStreamReady(torrent: Torrent?) {
                 val f = torrent?.videoFile ?: return
                 runOnUiThread {
-                    b.statusText.text = "Streaming on TV…"
+                    b.statusText.text = "Streaming on TV..."
                     launchPlayer("file://${f.absolutePath}", "Torrent")
                 }
             }
             override fun onStreamProgress(torrent: Torrent?, status: StreamStatus?) {
                 val s = status ?: return
-                runOnUiThread { b.statusText.text = "Buffering ${s.bufferProgress}%  •  ${s.seeds} peers" }
+                runOnUiThread { b.statusText.text = "Buffering ${s.bufferProgress}%  -  ${s.seeds} peers" }
             }
             override fun onStreamStopped() {}
             override fun onStreamError(torrent: Torrent?, e: Exception?) {

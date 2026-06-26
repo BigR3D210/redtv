@@ -11,6 +11,9 @@ import java.net.URLEncoder
 /** Xtream Codes API client: Live (+ Sports split), Movies (VOD), and Series. */
 object XtreamClient {
 
+    /** Set after load(): non-null if the VOD/Movies fetch failed (so the UI can explain a blank section). */
+    @Volatile var lastVodError: String? = null
+
     private val sportsKeywords = listOf(
         "sport", "ppv", "pay per view", "pay-per-view", "espn", "dazn", "ufc", "nfl",
         "nba", "mlb", "nhl", "fight", "boxing", "wwe", "wrestling", "event", "racing",
@@ -28,7 +31,8 @@ object XtreamClient {
         val ctx = ctx(source)
         val out = ArrayList<Channel>()
         out += loadLive(ctx)
-        runCatching { out += loadVod(ctx) }
+        lastVodError = null
+        runCatching { out += loadVod(ctx) }.onFailure { lastVodError = it.message ?: it.toString() }
         return out
     }
 

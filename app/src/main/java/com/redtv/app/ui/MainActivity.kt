@@ -152,13 +152,25 @@ class MainActivity : AppCompatActivity() {
         }
         displayed = result
         channelAdapter.submit(result)
-        if (result.isEmpty()) showEmpty(
-            when (currentSection) {
-                "fav" -> "No favorites yet. Long-press OK on a tile to add one."
-                "continue" -> "Nothing in progress yet."
-                else -> "Nothing here."
-            }
-        ) else b.emptyState.visibility = View.GONE
+        if (result.isEmpty()) showEmpty(emptyMessage()) else b.emptyState.visibility = View.GONE
+    }
+
+    /** Explain WHY a section is empty: provider error, all-hidden, or no search matches. */
+    private fun emptyMessage(): String {
+        val searching = !b.search.text?.toString().isNullOrBlank()
+        if (searching) return "No matches for your search."
+        when (currentSection) {
+            "fav" -> return "No favorites yet. Long-press OK on a tile to add one."
+            "recent" -> return "Nothing watched yet."
+            "continue" -> return "Nothing in progress yet."
+        }
+        val err = ContentRepository.sectionError(currentSection)
+        val repoCount = ContentRepository.sectionItems(currentSection).size
+        return when {
+            err != null && repoCount == 0 -> "Couldn't load this section from your provider:\n$err"
+            repoCount == 0 -> "Your provider returned nothing for this section."
+            else -> "All $repoCount items here are hidden.\nOpen Settings → Edit from laptop and use "Show all" to bring them back."
+        }
     }
 
     private fun openItem(ch: Channel) {
