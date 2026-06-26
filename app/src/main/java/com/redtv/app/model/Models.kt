@@ -57,3 +57,11 @@ data class EpgProgram(
     val stopMillis: Long,
     val description: String? = null
 )
+
+/** Personal edits layered on top of the live playlist (per device). */
+data class Overrides(
+    val categoryOrder: MutableMap<String, MutableList<String>> = HashMap(),  // section -> ordered category names
+    val categoryHidden: MutableSet<String> = HashSet(),                       // "section|name"
+    val categoryRename: MutableMap<String, String> = HashMap(),               // "section|name" -> display name
+    val channelOrder: MutableMap<String, MutableList<String>> = HashMap()     // "section|category" -> channel ids
+)

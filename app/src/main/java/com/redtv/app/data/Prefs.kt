@@ -4,6 +4,8 @@ import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.redtv.app.model.RemoteConfig
+import com.redtv.app.model.Channel
+import com.redtv.app.model.Overrides
 import com.redtv.app.model.SourceProfile
 
 /** Local persistence: sources/profiles, favorites, hidden, pinned, recents, resume points. */
@@ -70,6 +72,13 @@ class Prefs(context: Context) {
     }
 
     fun clearHidden() = sp.edit().remove(KEY_HIDDEN).apply()
+
+    /** Used by the online editor: set hidden state for a known set of channel ids. */
+    fun setHiddenForScope(scopeIds: Collection<String>, hidden: Set<String>) {
+        val set = hidden()
+        for (id in scopeIds) { if (hidden.contains(id)) set.add(id) else set.remove(id) }
+        sp.edit().putStringSet(KEY_HIDDEN, set).apply()
+    }
 
     // ---------- Pinned (reorder: pin to top) ----------
 
@@ -142,6 +151,34 @@ class Prefs(context: Context) {
             runCatching { gson.fromJson(it, RemoteConfig::class.java) }.getOrNull()
         }
         set(v) = sp.edit().putString(KEY_CACHE, v?.let { gson.toJson(it) }).apply()
+
+    // ---------- Overrides (online editor: category/channel order, hide, rename) ----------
+
+    fun overrides(): Overrides =
+        sp.getString(KEY_OVR, null)?.let { runCatching { gson.fromJson(it, Overrides::class.java) }.getOrNull() }
+            ?: Overrides()
+
+    fun saveOverrides(o: Overrides) = sp.edit().putString(KEY_OVR, gson.toJson(o)).apply()
+
+    private fun ovrKey(section: String, name: String) = "$section|$name"
+
+    fun isCategoryHidden(section: String, name: String) =
+        overrides().categoryHidden.contains(ovrKey(section, name))
+
+    fun categoryDisplayName(section: String, name: String): String =
+        overrides().categoryRename[ovrKey(section, name)] ?: name
+
+    fun orderedCategories(section: String, raw: List<String>): List<String> {
+        val order = overrides().categoryOrder[section] ?: return raw
+        val rank = order.withIndex().associate { it.value to it.index }
+        return raw.sortedWith(compareBy({ rank[it] ?: Int.MAX_VALUE }, { it.lowercase() }))
+    }
+
+    fun orderedChannels(section: String, category: String, items: List<Channel>): List<Channel> {
+        val order = overrides().channelOrder[ovrKey(section, category)] ?: return items
+        val rank = order.withIndex().associate { it.value to it.index }
+        return items.sortedBy { rank[it.id] ?: Int.MAX_VALUE }
+    }
 
     companion object {
         private const val KEY_PROFILES = "profiles"

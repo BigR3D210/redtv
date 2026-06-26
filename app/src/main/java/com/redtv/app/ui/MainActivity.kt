@@ -33,7 +33,8 @@ class MainActivity : AppCompatActivity() {
         "Live TV", "Movies", "Series", "Sports/PPV", "Favorites", "Recent", "Continue"
     )
     private var currentSection = Section.LIVE
-    private var categories: List<String> = emptyList()
+    // index 0 = "All" (null); others are raw category names
+    private var categoriesRaw: List<String?> = emptyList()
     private var selectedCategory = 0
     private var displayed: List<Channel> = emptyList()
 
@@ -72,8 +73,10 @@ class MainActivity : AppCompatActivity() {
         if (ContentRepository.dirty) {
             ContentRepository.dirty = false
             loadContent()
-        } else if (ContentRepository.hasAny()) applyFilter()
+        } else if (ContentRepository.hasAny()) onSection(currentSectionIndex())
     }
+
+    private fun currentSectionIndex() = sectionKeys.indexOf(currentSection).coerceAtLeast(0)
 
     private fun loadContent() {
         b.progress.visibility = View.VISIBLE
@@ -94,10 +97,18 @@ class MainActivity : AppCompatActivity() {
     private fun onSection(idx: Int) {
         currentSection = sectionKeys[idx]
         val isVirtual = currentSection in listOf("fav", "recent", "continue")
-        categories = if (isVirtual) listOf("All")
-        else listOf("All") + ContentRepository.categoriesFor(currentSection)
+        if (isVirtual) {
+            categoriesRaw = listOf(null)
+            b.categoryList.adapter = CategoryAdapter(listOf("All")) { i -> selectedCategory = i; applyFilter() }
+        } else {
+            val raw = ContentRepository.categoriesFor(currentSection)
+                .filterNot { prefs.isCategoryHidden(currentSection, it) }
+            val ordered = prefs.orderedCategories(currentSection, raw)
+            categoriesRaw = listOf<String?>(null) + ordered
+            val display = listOf("All") + ordered.map { prefs.categoryDisplayName(currentSection, it) }
+            b.categoryList.adapter = CategoryAdapter(display) { i -> selectedCategory = i; applyFilter() }
+        }
         selectedCategory = 0
-        b.categoryList.adapter = CategoryAdapter(categories) { i -> selectedCategory = i; applyFilter() }
         applyFilter()
     }
 
@@ -131,13 +142,14 @@ class MainActivity : AppCompatActivity() {
         if (!ContentRepository.hasAny()) return
         val query = b.search.text?.toString()?.trim()?.lowercase().orEmpty()
         var result = base()
+        val cat = categoriesRaw.getOrNull(selectedCategory)
         if (query.isNotEmpty()) {
             result = result.filter { it.name.lowercase().contains(query) }
+        } else if (cat != null) {
+            result = prefs.orderedChannels(currentSection, cat, result.filter { it.category == cat })
         } else {
-            val cat = categories.getOrNull(selectedCategory)
-            if (cat != null && cat != "All") result = result.filter { it.category == cat }
+            result = applyPins(result)
         }
-        result = applyPins(result)
         displayed = result
         channelAdapter.submit(result)
         if (result.isEmpty()) showEmpty(
