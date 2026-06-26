@@ -74,9 +74,9 @@ class Prefs(context: Context) {
     fun clearHidden() = sp.edit().remove(KEY_HIDDEN).apply()
 
     /** Used by the online editor: set hidden state for a known set of channel ids. */
-    fun setHiddenForScope(scopeIds: Collection<String>, hidden: Set<String>) {
+    fun setHiddenForScope(scopeIds: Collection<String>, hiddenIds: Set<String>) {
         val set = hidden()
-        for (id in scopeIds) { if (hidden.contains(id)) set.add(id) else set.remove(id) }
+        for (id in scopeIds) { if (hiddenIds.contains(id)) set.add(id) else set.remove(id) }
         sp.edit().putStringSet(KEY_HIDDEN, set).apply()
     }
 
