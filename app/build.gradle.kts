@@ -94,4 +94,7 @@ dependencies {
 
     // QR code generation for pairing
     implementation("com.google.zxing:core:3.5.3")
+
+    // Torrent / magnet streaming (sequential download -> play)
+    implementation("com.github.TorrentStream:TorrentStream-Android:2.7.0")
 }

@@ -81,7 +81,11 @@ class ConfigServer(
             <h2>Categories — ${esc(sectionLabel(section))}</h2>
             ${sectionTabs(section, "cats")}
             <a class="card" href="?code=$code&view=chans&section=$section&cat=__all__">🔎 Search &amp; favorite all channels →</a>
-            <p class="hint">Drag ≡ to reorder, rename in the box, tick "hide" to remove.</p>
+            <div class="bar">
+              <button type="button" onclick="document.querySelectorAll('#list .hide').forEach(function(c){c.checked=true})">Hide all</button>
+              <button type="button" onclick="document.querySelectorAll('#list .hide').forEach(function(c){c.checked=false})">Show all</button>
+            </div>
+            <p class="hint">Drag ≡ to reorder, rename in the box, tick "hide" to remove. Use Hide all / Show all to bulk toggle, then untick the ones you want.</p>
             <form method="post" onsubmit="return pack(this,false)">
               <input type="hidden" name="code" value="$code"/>
               <input type="hidden" name="action" value="cats"/>
