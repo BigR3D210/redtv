@@ -169,7 +169,7 @@ class MainActivity : AppCompatActivity() {
         return when {
             err != null && repoCount == 0 -> "Couldn't load this section from your provider:\n$err"
             repoCount == 0 -> "Your provider returned nothing for this section."
-            else -> "All $repoCount items here are hidden.\nOpen Settings → Edit from laptop and use "Show all" to bring them back."
+            else -> "All $repoCount items here are hidden.\nOpen Settings → Edit from laptop and use 'Show all' to bring them back."
         }
     }
 
