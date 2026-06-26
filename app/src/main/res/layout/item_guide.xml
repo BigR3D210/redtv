@@ -13,18 +13,18 @@
 
     <TextView
         android:id="@+id/guideNum"
-        android:layout_width="38dp"
+        android:layout_width="34dp"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:textColor="@color/accent"
-        android:textSize="15sp"
+        android:textSize="14sp"
         android:textStyle="bold" />
 
     <ImageView
         android:id="@+id/guideLogo"
-        android:layout_width="52dp"
-        android:layout_height="38dp"
-        android:layout_marginStart="6dp"
+        android:layout_width="48dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="4dp"
         android:background="@drawable/logo_placeholder"
         android:padding="3dp"
         android:scaleType="fitCenter" />
@@ -32,7 +32,7 @@
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
+        android:layout_marginStart="10dp"
         android:layout_weight="1"
         android:orientation="vertical">
 
@@ -56,4 +56,12 @@
             android:textColor="@color/text_secondary"
             android:textSize="12sp" />
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/guideStar"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginStart="6dp"
+        android:src="@drawable/ic_star"
+        android:visibility="gone" />
 </LinearLayout>

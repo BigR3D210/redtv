@@ -31,7 +31,7 @@
 
     <EditText
         android:id="@+id/search"
-        android:layout_width="300dp"
+        android:layout_width="280dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:background="@drawable/bg_input"
@@ -44,18 +44,6 @@
         android:padding="10dp"
         android:textColor="@color/text_primary"
         android:textColorHint="@color/text_secondary"
-        app:layout_constraintEnd_toStartOf="@id/btnGuide"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <Button
-        android:id="@+id/btnGuide"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="8dp"
-        android:background="@drawable/bg_button"
-        android:text="TV Guide"
-        android:textColor="@color/text_primary"
         app:layout_constraintEnd_toStartOf="@id/btnSources"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -96,9 +84,10 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/logo" />
 
+    <!-- Column 1: categories -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/categoryList"
-        android:layout_width="250dp"
+        android:layout_width="190dp"
         android:layout_height="0dp"
         android:layout_marginStart="24dp"
         android:layout_marginTop="14dp"
@@ -108,19 +97,107 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/sectionList" />
 
+    <!-- Column 2: channel / title list -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/channelGrid"
-        android:layout_width="0dp"
+        android:id="@+id/channelList"
+        android:layout_width="360dp"
         android:layout_height="0dp"
-        android:layout_marginStart="14dp"
-        android:layout_marginEnd="24dp"
+        android:layout_marginStart="8dp"
         android:layout_marginTop="14dp"
         android:clipToPadding="false"
         android:paddingBottom="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/categoryList"
         app:layout_constraintTop_toBottomOf="@id/sectionList" />
+
+    <!-- Column 3: live preview -->
+    <FrameLayout
+        android:id="@+id/previewContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="24dp"
+        android:background="@android:color/black"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/channelList"
+        app:layout_constraintTop_toBottomOf="@id/sectionList">
+
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/preview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:focusable="false"
+            app:use_controller="false"
+            app:resize_mode="fit" />
+
+        <ProgressBar
+            android:id="@+id/previewBuffering"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminateTint="@color/accent"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/previewIdle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="Pause on a channel to preview"
+            android:textColor="@color/text_secondary"
+            android:textSize="15sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="#CC000000"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView
+                android:id="@+id/previewName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/previewNow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/previewNext"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/previewHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Press OK to watch full screen"
+                android:textColor="@color/accent"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </FrameLayout>
 
     <ProgressBar
         android:id="@+id/progress"
@@ -129,22 +206,21 @@
         android:indeterminateTint="@color/accent"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/categoryList"
+        app:layout_constraintStart_toStartOf="@id/channelList"
+        app:layout_constraintEnd_toEndOf="@id/channelList"
         app:layout_constraintTop_toBottomOf="@id/sectionList" />
 
     <TextView
         android:id="@+id/emptyState"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="48dp"
         android:gravity="center"
         android:textColor="@color/text_secondary"
-        android:textSize="16sp"
+        android:textSize="15sp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/categoryList"
+        app:layout_constraintStart_toStartOf="@id/channelList"
+        app:layout_constraintEnd_toEndOf="@id/channelList"
         app:layout_constraintTop_toBottomOf="@id/sectionList" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

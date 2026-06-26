@@ -53,8 +53,10 @@ class LiveGuideActivity : AppCompatActivity() {
             .sortedWith(compareBy({ it.number ?: Int.MAX_VALUE }, { it.name.lowercase() }))
 
         adapter = GuideAdapter(
+            prefs,
             onFocused = { _, ch -> onFocusChannel(ch) },
-            onSelected = { ch -> openFullscreen(ch) }
+            onSelected = { ch -> openFullscreen(ch) },
+            onLongPress = { }
         )
         b.guideList.layoutManager = LinearLayoutManager(this)
         b.guideList.adapter = adapter

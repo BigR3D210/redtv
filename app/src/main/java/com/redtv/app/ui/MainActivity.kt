@@ -2,6 +2,8 @@ package com.redtv.app.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -9,7 +11,14 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.GridLayoutManager
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.redtv.app.R
 import com.redtv.app.data.ContentRepository
@@ -17,14 +26,19 @@ import com.redtv.app.data.Prefs
 import com.redtv.app.databinding.ActivityMainBinding
 import com.redtv.app.model.Channel
 import com.redtv.app.model.Section
+import com.redtv.app.net.Http
 import com.redtv.app.net.Updater
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+@UnstableApi
 class MainActivity : AppCompatActivity() {
 
     private lateinit var b: ActivityMainBinding
     private lateinit var prefs: Prefs
-    private lateinit var channelAdapter: ChannelAdapter
+    private lateinit var listAdapter: GuideAdapter
 
     private val sectionKeys = listOf(
         Section.LIVE, Section.MOVIES, Section.SERIES, Section.SPORTS, "fav", "recent", "continue"
@@ -38,6 +52,14 @@ class MainActivity : AppCompatActivity() {
     private var selectedCategory = 0
     private var displayed: List<Channel> = emptyList()
 
+    // ---- Live preview (right pane) ----
+    private var previewPlayer: ExoPlayer? = null
+    private var pending: Channel? = null
+    private var lastFocused: Channel? = null
+    private val timeFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
+    private val handler = Handler(Looper.getMainLooper())
+    private val previewRunnable = Runnable { pending?.let { startPreview(it) } }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
@@ -47,19 +69,23 @@ class MainActivity : AppCompatActivity() {
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
 
-        channelAdapter = ChannelAdapter(prefs, { ch, _ -> openItem(ch) }, { ch -> showContextMenu(ch) })
-        b.channelGrid.layoutManager = GridLayoutManager(this, 5)
-        b.channelGrid.adapter = channelAdapter
-        b.channelGrid.setHasFixedSize(true)
-        b.channelGrid.setItemViewCacheSize(24)
-        b.channelGrid.itemAnimator = null
+        listAdapter = GuideAdapter(
+            prefs,
+            onFocused = { _, ch -> onFocusItem(ch) },
+            onSelected = { ch -> openItem(ch) },
+            onLongPress = { ch -> showContextMenu(ch) }
+        )
+        b.channelList.layoutManager = LinearLayoutManager(this)
+        b.channelList.adapter = listAdapter
+        b.channelList.setHasFixedSize(true)
+        b.channelList.setItemViewCacheSize(20)
+        b.channelList.itemAnimator = null
         b.categoryList.layoutManager = LinearLayoutManager(this)
         b.sectionList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         b.sectionList.adapter = CategoryAdapter(sectionLabels, R.layout.item_section) { idx -> onSection(idx) }
 
         b.btnSettings.setOnClickListener { showSettingsMenu() }
         b.btnSources.setOnClickListener { showSourcePicker() }
-        b.btnGuide.setOnClickListener { startActivity(Intent(this, LiveGuideActivity::class.java)) }
         b.search.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) = applyFilter()
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -69,12 +95,24 @@ class MainActivity : AppCompatActivity() {
         checkForUpdate(silent = true)
     }
 
+    override fun onStart() {
+        super.onStart()
+        initPreview()
+    }
+
     override fun onResume() {
         super.onResume()
         if (ContentRepository.dirty) {
             ContentRepository.dirty = false
             loadContent()
         } else if (ContentRepository.hasAny()) onSection(currentSectionIndex())
+    }
+
+    override fun onStop() {
+        super.onStop()
+        handler.removeCallbacks(previewRunnable)
+        previewPlayer?.release()
+        previewPlayer = null
     }
 
     private fun currentSectionIndex() = sectionKeys.indexOf(currentSection).coerceAtLeast(0)
@@ -152,26 +190,84 @@ class MainActivity : AppCompatActivity() {
             result = applyPins(result)
         }
         displayed = result
-        channelAdapter.submit(result)
+        listAdapter.submit(result)
+        resetPreview()
         if (result.isEmpty()) showEmpty(emptyMessage()) else b.emptyState.visibility = View.GONE
     }
 
-    /** Explain WHY a section is empty: provider error, all-hidden, or no search matches. */
-    private fun emptyMessage(): String {
-        val searching = !b.search.text?.toString().isNullOrBlank()
-        if (searching) return "No matches for your search."
-        when (currentSection) {
-            "fav" -> return "No favorites yet. Long-press OK on a tile to add one."
-            "recent" -> return "Nothing watched yet."
-            "continue" -> return "Nothing in progress yet."
+    // ---- Preview pane ----
+
+    private fun initPreview() {
+        if (previewPlayer != null) return
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(Http.userAgent)
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(20_000)
+            .setReadTimeoutMs(30_000)
+        val dataSourceFactory = DefaultDataSource.Factory(this, httpFactory)
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(10_000, 30_000, 1_500, 3_000)
+            .build()
+        val p = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setLoadControl(loadControl)
+            .build()
+        p.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                b.previewBuffering.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+            }
+        })
+        b.preview.player = p
+        previewPlayer = p
+    }
+
+    private fun onFocusItem(ch: Channel) {
+        lastFocused = ch
+        updatePreviewInfo(ch)
+        handler.removeCallbacks(previewRunnable)
+        if (ch.id.startsWith("series_") || ch.streamUrl.isBlank()) {
+            // A series folder has no single stream — show info, no video.
+            previewPlayer?.stop()
+            b.previewIdle.text = "Press OK to see episodes"
+            b.previewIdle.visibility = View.VISIBLE
+            b.previewBuffering.visibility = View.GONE
+        } else {
+            pending = ch
+            handler.postDelayed(previewRunnable, 900)
         }
-        val err = ContentRepository.sectionError(currentSection)
-        val repoCount = ContentRepository.sectionItems(currentSection).size
-        return when {
-            err != null && repoCount == 0 -> "Couldn't load this section from your provider:\n$err"
-            repoCount == 0 -> "Your provider returned nothing for this section."
-            else -> "All $repoCount items here are hidden.\nOpen Settings → Edit from laptop and use 'Show all' to bring them back."
+    }
+
+    private fun updatePreviewInfo(ch: Channel) {
+        b.previewName.text = ch.name
+        val (now, next) = ContentRepository.nowAndNext(ch.epgChannelId)
+        b.previewNow.text = when {
+            now != null -> "Now: ${now.title}"
+            ch.number != null -> "Channel ${ch.number}"
+            else -> ch.category
         }
+        if (next != null) {
+            b.previewNext.visibility = View.VISIBLE
+            b.previewNext.text = "Next: ${next.title}  (${timeFmt.format(Date(next.startMillis))})"
+        } else b.previewNext.visibility = View.GONE
+    }
+
+    private fun startPreview(ch: Channel) {
+        val p = previewPlayer ?: return
+        b.previewIdle.visibility = View.GONE
+        p.setMediaItem(MediaItem.fromUri(ch.streamUrl))
+        p.prepare()
+        p.playWhenReady = true
+    }
+
+    private fun resetPreview() {
+        handler.removeCallbacks(previewRunnable)
+        previewPlayer?.stop()
+        b.previewBuffering.visibility = View.GONE
+        b.previewIdle.text = "Pause on a channel to preview"
+        b.previewIdle.visibility = View.VISIBLE
+        b.previewName.text = ""
+        b.previewNow.text = ""
+        b.previewNext.visibility = View.GONE
     }
 
     private fun openItem(ch: Channel) {

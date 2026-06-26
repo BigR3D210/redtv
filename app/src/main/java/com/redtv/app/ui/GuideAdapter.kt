@@ -9,12 +9,15 @@ import androidx.recyclerview.widget.RecyclerView
 import coil.load
 import com.redtv.app.R
 import com.redtv.app.data.ContentRepository
+import com.redtv.app.data.Prefs
 import com.redtv.app.model.Channel
 
-/** Channel rows for the Live TV guide: number, logo, name, and what's on now. */
+/** List rows for the home browser: number, logo, name, what's-on / category, fav star. */
 class GuideAdapter(
+    private val prefs: Prefs,
     private val onFocused: (Int, Channel) -> Unit,
-    private val onSelected: (Channel) -> Unit
+    private val onSelected: (Channel) -> Unit,
+    private val onLongPress: (Channel) -> Unit
 ) : RecyclerView.Adapter<GuideAdapter.VH>() {
 
     private val items = ArrayList<Channel>()
@@ -30,6 +33,7 @@ class GuideAdapter(
         val logo: ImageView = v.findViewById(R.id.guideLogo)
         val name: TextView = v.findViewById(R.id.guideName)
         val now: TextView = v.findViewById(R.id.guideNow)
+        val star: ImageView = v.findViewById(R.id.guideStar)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -43,6 +47,7 @@ class GuideAdapter(
         val ch = items[position]
         holder.num.text = ch.number?.toString() ?: ""
         holder.name.text = ch.name
+        holder.star.visibility = if (prefs.isFavorite(ch.id)) View.VISIBLE else View.GONE
 
         if (!ch.logoUrl.isNullOrBlank()) {
             holder.logo.load(ch.logoUrl) {
@@ -55,11 +60,12 @@ class GuideAdapter(
         }
 
         val (nowProg, _) = ContentRepository.nowAndNext(ch.epgChannelId)
-        holder.now.text = nowProg?.title ?: "Live"
+        holder.now.text = nowProg?.title ?: ch.category
 
         holder.itemView.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) onFocused(holder.bindingAdapterPosition, ch)
         }
         holder.itemView.setOnClickListener { onSelected(ch) }
+        holder.itemView.setOnLongClickListener { onLongPress(ch); true }
     }
 }
