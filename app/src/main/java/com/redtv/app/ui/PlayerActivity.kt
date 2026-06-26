@@ -1,6 +1,7 @@
 package com.redtv.app.ui
 
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -40,6 +41,7 @@ class PlayerActivity : AppCompatActivity() {
     private var castChannel: Channel? = null  // set when launched as a cast (direct URL)
     private val timeFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
     private val hideInfo = Runnable { b.infoBar.visibility = View.GONE }
+    private var nextTimer: CountDownTimer? = null
 
     private val resizeModes = intArrayOf(
         AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -57,6 +59,9 @@ class PlayerActivity : AppCompatActivity() {
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         b.playerView.keepScreenOn = true
+
+        b.btnPlayNext.setOnClickListener { gotoNext() }
+        b.btnCancelNext.setOnClickListener { hideNextOverlay() }
 
         val url = intent.getStringExtra(EXTRA_URL)
         if (!url.isNullOrBlank()) {
@@ -95,6 +100,7 @@ class PlayerActivity : AppCompatActivity() {
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 b.buffering.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                if (state == Player.STATE_ENDED) maybeAutoplayNext()
             }
             override fun onPlayerError(error: PlaybackException) {
                 b.errorText.text = "Playback error: ${error.errorCodeName}\n${error.message ?: ""}"
@@ -110,6 +116,7 @@ class PlayerActivity : AppCompatActivity() {
         castChannel ?: ids.getOrNull(index)?.let { ContentRepository.channelById(it) }
 
     private fun playCurrent() {
+        hideNextOverlay()
         val ch = currentChannel() ?: run {
             b.errorText.text = "Channel not found."
             b.errorText.visibility = View.VISIBLE
@@ -134,6 +141,41 @@ class PlayerActivity : AppCompatActivity() {
         showInfo(ch)
     }
 
+    // ---- Series autoplay ("Up next" with countdown) ----
+
+    private fun maybeAutoplayNext() {
+        val ch = currentChannel() ?: return
+        if (!ch.id.startsWith("ep_")) return        // only for series episodes
+        if (index >= ids.size - 1) return            // no next episode
+        val next = ids.getOrNull(index + 1)?.let { ContentRepository.channelById(it) } ?: return
+        showNextOverlay(next)
+    }
+
+    private fun showNextOverlay(next: Channel) {
+        b.nextTitle.text = next.name
+        b.nextCountdown.text = "Playing in 10s"
+        b.nextOverlay.visibility = View.VISIBLE
+        b.btnPlayNext.requestFocus()
+        nextTimer?.cancel()
+        nextTimer = object : CountDownTimer(10_000, 1_000) {
+            override fun onTick(ms: Long) { b.nextCountdown.text = "Playing in ${ms / 1000}s" }
+            override fun onFinish() { gotoNext() }
+        }.start()
+    }
+
+    private fun hideNextOverlay() {
+        nextTimer?.cancel(); nextTimer = null
+        b.nextOverlay.visibility = View.GONE
+    }
+
+    private fun gotoNext() {
+        hideNextOverlay()
+        if (ids.isEmpty() || index >= ids.size - 1) return
+        saveResume()
+        index += 1
+        playCurrent()
+    }
+
     private fun showInfo(ch: Channel) {
         b.infoName.text = ch.name
         val (now, next) = ContentRepository.nowAndNext(ch.epgChannelId)
@@ -153,6 +195,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun switchBy(delta: Int) {
         if (ids.isEmpty()) return
+        hideNextOverlay()
         saveResume()
         index = (index + delta + ids.size) % ids.size
         playCurrent()
@@ -195,6 +238,9 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK && b.nextOverlay.visibility == View.VISIBLE) {
+            hideNextOverlay(); return true
+        }
         return when (keyCode) {
             KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> { switchBy(-1); true }
             KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_MEDIA_NEXT -> { switchBy(1); true }
@@ -217,6 +263,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        nextTimer?.cancel(); nextTimer = null
         saveResume()
         player?.release()
         player = null

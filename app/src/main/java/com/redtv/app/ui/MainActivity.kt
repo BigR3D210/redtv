@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity() {
 
         b.btnSettings.setOnClickListener { showSettingsMenu() }
         b.btnSources.setOnClickListener { showSourcePicker() }
+        b.btnGuide.setOnClickListener { startActivity(Intent(this, LiveGuideActivity::class.java)) }
         b.search.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) = applyFilter()
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}

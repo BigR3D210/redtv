@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black">
@@ -11,8 +12,7 @@
         android:focusable="true"
         app:use_controller="true"
         app:resize_mode="fit"
-        app:show_buffering="when_playing"
-        xmlns:app="http://schemas.android.com/apk/res-auto" />
+        app:show_buffering="when_playing" />
 
     <ProgressBar
         android:id="@+id/buffering"
@@ -55,6 +55,73 @@
             android:layout_marginTop="2dp"
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- Up-next autoplay overlay (series) -->
+    <LinearLayout
+        android:id="@+id/nextOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="32dp"
+        android:background="#E6000000"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/nextLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Up next"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/nextTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:maxWidth="420dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/nextCountdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnPlayNext"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_button"
+                android:paddingHorizontal="20dp"
+                android:text="Play now"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/btnCancelNext"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:background="@drawable/bg_button"
+                android:paddingHorizontal="20dp"
+                android:text="Cancel"
+                android:textColor="@color/text_primary" />
+        </LinearLayout>
     </LinearLayout>
 
     <TextView
