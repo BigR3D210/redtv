@@ -191,6 +191,7 @@ class Prefs(context: Context) {
         private const val KEY_RECENTS = "recents"
         private const val KEY_LAST = "last_channel"
         private const val KEY_RESUME = "resume_"
+        private const val KEY_OVR = "overrides"
         private val listType = object : TypeToken<List<String>>() {}.type
         private val profilesType = object : TypeToken<List<SourceProfile>>() {}.type
     }
