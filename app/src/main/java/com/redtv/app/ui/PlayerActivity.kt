@@ -12,6 +12,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -36,6 +37,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private var ids: List<String> = emptyList()
     private var index = 0
+    private var castChannel: Channel? = null  // set when launched as a cast (direct URL)
     private val timeFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
     private val hideInfo = Runnable { b.infoBar.visibility = View.GONE }
 
@@ -53,12 +55,16 @@ class PlayerActivity : AppCompatActivity() {
         setContentView(b.root)
         prefs = Prefs(this)
 
-        // Keep the TV awake while watching (stops the Fire TV screensaver).
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         b.playerView.keepScreenOn = true
 
-        ids = intent.getStringArrayListExtra(EXTRA_IDS) ?: arrayListOf()
-        index = intent.getIntExtra(EXTRA_INDEX, 0).coerceIn(0, (ids.size - 1).coerceAtLeast(0))
+        val url = intent.getStringExtra(EXTRA_URL)
+        if (!url.isNullOrBlank()) {
+            castChannel = Channel(id = "cast", name = intent.getStringExtra(EXTRA_NAME) ?: "Cast", streamUrl = url)
+        } else {
+            ids = intent.getStringArrayListExtra(EXTRA_IDS) ?: arrayListOf()
+            index = intent.getIntExtra(EXTRA_INDEX, 0).coerceIn(0, (ids.size - 1).coerceAtLeast(0))
+        }
     }
 
     override fun onStart() {
@@ -74,13 +80,15 @@ class PlayerActivity : AppCompatActivity() {
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(20_000)
             .setReadTimeoutMs(30_000)
+        // Wrap so it also plays local files (uploaded casts), content:// etc.
+        val dataSourceFactory = DefaultDataSource.Factory(this, httpFactory)
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(15_000, 60_000, 2_500, 5_000)
             .build()
 
         val p = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setLoadControl(loadControl)
             .build()
 
@@ -99,7 +107,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun currentChannel(): Channel? =
-        ids.getOrNull(index)?.let { ContentRepository.channelById(it) }
+        castChannel ?: ids.getOrNull(index)?.let { ContentRepository.channelById(it) }
 
     private fun playCurrent() {
         val ch = currentChannel() ?: run {
@@ -119,8 +127,10 @@ class PlayerActivity : AppCompatActivity() {
         }
         p.playWhenReady = true
 
-        prefs.pushRecent(ch.id)
-        prefs.lastChannelId = ch.id
+        if (castChannel == null) {
+            prefs.pushRecent(ch.id)
+            prefs.lastChannelId = ch.id
+        }
         showInfo(ch)
     }
 
@@ -215,5 +225,7 @@ class PlayerActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_IDS = "ids"
         const val EXTRA_INDEX = "index"
+        const val EXTRA_URL = "url"
+        const val EXTRA_NAME = "name"
     }
 }

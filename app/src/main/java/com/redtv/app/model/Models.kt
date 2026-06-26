@@ -40,7 +40,8 @@ data class Channel(
     val category: String = "Uncategorized",
     val epgChannelId: String? = null,
     val number: Int? = null,
-    val section: String = Section.LIVE
+    val section: String = Section.LIVE,
+    val added: Long = 0
 )
 
 data class SourceProfile(

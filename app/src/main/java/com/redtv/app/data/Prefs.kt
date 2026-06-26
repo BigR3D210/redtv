@@ -109,6 +109,13 @@ class Prefs(context: Context) {
         return nowFav
     }
 
+    /** Used by the online editor: set favorite state for a known set of channel ids. */
+    fun setFavoritesForScope(scopeIds: Collection<String>, favIds: Set<String>) {
+        val set = favorites()
+        for (id in scopeIds) { if (favIds.contains(id)) set.add(id) else set.remove(id) }
+        sp.edit().putStringSet(KEY_FAVS, set).apply()
+    }
+
     // ---------- Recents ----------
 
     fun recents(): List<String> =

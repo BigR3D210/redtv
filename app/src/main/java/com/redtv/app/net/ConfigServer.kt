@@ -15,10 +15,7 @@ import fi.iki.elonen.NanoHTTPD.Response.Status
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import java.net.URLEncoder
 
-/**
- * LAN web editor. Pair with the code, then edit the source AND reorder / hide / rename
- * categories and reorder / hide channels. Saves as on-device overrides.
- */
+/** LAN web editor: source, plus reorder/hide/rename categories and reorder/hide/favorite channels. */
 class ConfigServer(
     port: Int,
     private val prefs: Prefs,
@@ -39,7 +36,6 @@ class ConfigServer(
                 session.parseBody(files)
                 p = session.parms
             } else p = session.parms
-
             if (p["code"] != code) {
                 return page(codeBody(if (session.method == Method.POST) "That code didn't match." else null))
             }
@@ -48,8 +44,6 @@ class ConfigServer(
             page("<p>Error: ${esc(e.message ?: "unknown")}</p>${homeLink()}")
         }
     }
-
-    // ---------- GET ----------
 
     private fun handleGet(p: Map<String, String>): Response = when (p["view"]) {
         "source" -> page(sourceBody())
@@ -74,20 +68,20 @@ class ConfigServer(
         val rows = raw.joinToString("") { name ->
             val disp = esc(prefs.categoryDisplayName(section, name))
             val hidden = if (prefs.isCategoryHidden(section, name)) "checked" else ""
-            val enc = enc(name)
             """
             <li data-name="${esc(name)}">
               <span class="h">≡</span>
               <input class="rn" value="$disp" />
               <label class="hd"><input type="checkbox" class="hide" $hidden/> hide</label>
-              <a class="edit" href="?code=$code&view=chans&section=$section&cat=$enc">channels →</a>
+              <a class="edit" href="?code=$code&view=chans&section=$section&cat=${enc(name)}">channels →</a>
             </li>
             """.trimIndent()
         }
         return """
             <h2>Categories — ${esc(sectionLabel(section))}</h2>
-            <p class="hint">Drag the ≡ handle to reorder. Rename in the box. Tick "hide" to remove from the TV.</p>
             ${sectionTabs(section, "cats")}
+            <a class="card" href="?code=$code&view=chans&section=$section&cat=__all__">🔎 Search &amp; favorite all channels →</a>
+            <p class="hint">Drag ≡ to reorder, rename in the box, tick "hide" to remove.</p>
             <form method="post" onsubmit="return pack(this,false)">
               <input type="hidden" name="code" value="$code"/>
               <input type="hidden" name="action" value="cats"/>
@@ -102,22 +96,39 @@ class ConfigServer(
     }
 
     private fun chansBody(section: String, cat: String): String {
-        val items = prefs.orderedChannels(section, cat,
-            ContentRepository.sectionItems(section).filter { it.category == cat })
+        val all = cat == "__all__"
+        val items = if (all) ContentRepository.sectionItems(section)
+            else prefs.orderedChannels(section, cat, ContentRepository.sectionItems(section).filter { it.category == cat })
+        val title = if (all) "All channels — ${esc(sectionLabel(section))}" else esc(cat)
+        var i = 0
         val rows = items.joinToString("") { ch ->
             val hidden = if (prefs.isHidden(ch.id)) "checked" else ""
-            """
-            <li data-id="${esc(ch.id)}">
+            val fav = if (prefs.isFavorite(ch.id)) "checked" else ""
+            val row = """
+            <li data-id="${esc(ch.id)}" data-name="${esc(ch.name.lowercase())}" data-added="${ch.added}" data-i="$i">
               <span class="h">≡</span>
               <span class="nm">${esc(ch.name)}</span>
+              <label class="hd"><input type="checkbox" class="fav" $fav/> ★</label>
               <label class="hd"><input type="checkbox" class="hide" $hidden/> hide</label>
             </li>
             """.trimIndent()
+            i++; row
         }
         return """
-            <h2>Channels — ${esc(cat)}</h2>
-            <p class="hint">Drag to reorder. Tick "hide" to remove from the TV.</p>
+            <h2>Channels — $title</h2>
             <a class="back" href="?code=$code&view=cats&section=$section">← back to categories</a>
+            <input id="search" placeholder="🔎 Search channels…" oninput="flt()" />
+            <div class="bar">
+              <button type="button" onclick="setAll('hide',true)">Hide all</button>
+              <button type="button" onclick="setAll('hide',false)">Show all</button>
+              <select id="sort" onchange="srt()">
+                <option value="def">Default order</option>
+                <option value="az">A → Z</option>
+                <option value="za">Z → A</option>
+                <option value="new">Newest first</option>
+              </select>
+            </div>
+            <p class="hint">Search, sort, tick ★ to favorite, tick "hide" to remove. Drag ≡ to reorder.</p>
             <form method="post" onsubmit="return pack(this,true)">
               <input type="hidden" name="code" value="$code"/>
               <input type="hidden" name="action" value="chans"/>
@@ -125,9 +136,10 @@ class ConfigServer(
               <input type="hidden" name="cat" value="${esc(cat)}"/>
               <input type="hidden" name="payload"/>
               <ul id="list">$rows</ul>
-              <button type="submit">Save channels</button>
+              <button type="submit">Save</button>
             </form>
             $sortableJs
+            $chanToolsJs
         """.trimIndent()
     }
 
@@ -140,8 +152,7 @@ class ConfigServer(
             <form method="post">
               <input type="hidden" name="code" value="$code"/>
               <input type="hidden" name="action" value="source"/>
-              <label>Source name</label>
-              <input name="name" value="${v(prefs.activeProfile()?.name)}"/>
+              <label>Source name</label><input name="name" value="${v(prefs.activeProfile()?.name)}"/>
               <label>Type</label>
               <select name="type" onchange="t(this.value)">
                 <option value="xtream" ${if (type=="xtream") "selected" else ""}>Xtream login</option>
@@ -167,7 +178,7 @@ class ConfigServer(
     private fun handlePost(p: Map<String, String>): Response = when (p["action"]) {
         "source" -> { saveSource(p); page("<h2>Saved ✓</h2>${homeLink()}") }
         "cats" -> { saveCats(p); page("<h2>Categories saved ✓</h2><a class='card' href='?code=$code&view=cats&section=${p["section"]}'>Back</a>${homeLink()}") }
-        "chans" -> { saveChans(p); page("<h2>Channels saved ✓</h2><a class='card' href='?code=$code&view=cats&section=${p["section"]}'>Back to categories</a>${homeLink()}") }
+        "chans" -> { saveChans(p); page("<h2>Saved ✓</h2><a class='card' href='?code=$code&view=cats&section=${p["section"]}'>Back to categories</a>${homeLink()}") }
         else -> page(menuBody())
     }
 
@@ -191,7 +202,6 @@ class ConfigServer(
         val order = root.getAsJsonArray("order")?.map { it.asString } ?: emptyList()
         val hidden = root.getAsJsonArray("hidden")?.map { it.asString }?.toSet() ?: emptySet()
         val rename = root.getAsJsonObject("rename")
-
         val o = prefs.overrides()
         o.categoryOrder[section] = order.toMutableList()
         val prefix = "$section|"
@@ -213,11 +223,14 @@ class ConfigServer(
         val root = JsonParser.parseString(p["payload"] ?: "{}").asJsonObject
         val order = root.getAsJsonArray("order")?.map { it.asString } ?: emptyList()
         val hidden = root.getAsJsonArray("hidden")?.map { it.asString }?.toSet() ?: emptySet()
-
-        val o = prefs.overrides()
-        o.channelOrder["$section|$cat"] = order.toMutableList()
-        prefs.saveOverrides(o)
+        val fav = root.getAsJsonArray("fav")?.map { it.asString }?.toSet() ?: emptySet()
+        if (cat != "__all__") {
+            val o = prefs.overrides()
+            o.channelOrder["$section|$cat"] = order.toMutableList()
+            prefs.saveOverrides(o)
+        }
         prefs.setHiddenForScope(order, hidden)
+        prefs.setFavoritesForScope(order, fav)
         ContentRepository.dirty = true
         onSaved()
     }
@@ -246,23 +259,43 @@ class ConfigServer(
               li.addEventListener('dragover',function(e){e.preventDefault();
                 if(li===drag) return;
                 var r=li.getBoundingClientRect();
-                var after=(e.clientY-r.top)/r.height>0.5;
-                ul.insertBefore(drag, after?li.nextSibling:li);
+                ul.insertBefore(drag, (e.clientY-r.top)/r.height>0.5?li.nextSibling:li);
               });
             });
           })();
           function pack(form, isChan){
-            var lis=form.querySelectorAll('#list li'); var order=[],hidden=[],rename={};
+            var lis=form.querySelectorAll('#list li'); var order=[],hidden=[],fav=[],rename={};
             lis.forEach(function(li){
               var key=isChan?li.getAttribute('data-id'):li.getAttribute('data-name');
               order.push(key);
               if(li.querySelector('.hide').checked) hidden.push(key);
-              if(!isChan){var rn=li.querySelector('.rn'); if(rn) rename[li.getAttribute('data-name')]=rn.value;}
+              if(isChan){ if(li.querySelector('.fav').checked) fav.push(key); }
+              else { var rn=li.querySelector('.rn'); if(rn) rename[li.getAttribute('data-name')]=rn.value; }
             });
-            var pl={order:order,hidden:hidden}; if(!isChan) pl.rename=rename;
+            var pl={order:order,hidden:hidden}; if(isChan) pl.fav=fav; else pl.rename=rename;
             form.querySelector('[name=payload]').value=JSON.stringify(pl);
             return true;
           }
+        </script>
+    """.trimIndent()
+
+    private val chanToolsJs = """
+        <script>
+          var L=document.getElementById('list');
+          function flt(){var q=document.getElementById('search').value.toLowerCase();
+            L.querySelectorAll('li').forEach(function(li){
+              li.style.display=li.getAttribute('data-name').indexOf(q)>=0?'flex':'none';});}
+          function setAll(cls,val){L.querySelectorAll('li').forEach(function(li){
+            if(li.style.display!=='none') li.querySelector('.'+cls).checked=val;});}
+          function srt(){var m=document.getElementById('sort').value;
+            var a=Array.prototype.slice.call(L.querySelectorAll('li'));
+            a.sort(function(x,y){
+              if(m=='az') return x.getAttribute('data-name').localeCompare(y.getAttribute('data-name'));
+              if(m=='za') return y.getAttribute('data-name').localeCompare(x.getAttribute('data-name'));
+              if(m=='new') return (+y.getAttribute('data-added'))-(+x.getAttribute('data-added'));
+              return (+x.getAttribute('data-i'))-(+y.getAttribute('data-i'));
+            });
+            a.forEach(function(li){L.appendChild(li);});}
         </script>
     """.trimIndent()
 
@@ -288,7 +321,8 @@ class ConfigServer(
         h2{color:#E50914}a{color:#fff}.hint{color:#A8AEBC;font-size:13px}
         label{display:block;margin:12px 0 4px;color:#A8AEBC;font-size:14px}
         input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #333;background:#23262E;color:#fff;font-size:15px;box-sizing:border-box}
-        button{margin-top:16px;padding:12px 18px;border:0;border-radius:8px;background:#E50914;color:#fff;font-weight:700;font-size:15px}
+        button{margin-top:10px;padding:10px 16px;border:0;border-radius:8px;background:#E50914;color:#fff;font-weight:700;font-size:15px;cursor:pointer}
+        .bar{display:flex;gap:8px;margin:8px 0;align-items:center;flex-wrap:wrap}.bar button{margin:0;background:#333}.bar select{width:auto}
         .card{display:block;background:#23262E;border:1px solid #333;border-radius:10px;padding:16px;margin:10px 0;text-decoration:none;font-weight:600}
         .tabs{margin:10px 0;display:flex;flex-wrap:wrap;gap:6px}.tab{padding:6px 12px;border-radius:8px;background:#23262E;text-decoration:none;font-size:14px}.tab.on{background:#E50914}
         ul{list-style:none;padding:0;margin:14px 0}

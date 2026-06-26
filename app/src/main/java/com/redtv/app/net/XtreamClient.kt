@@ -48,7 +48,8 @@ object XtreamClient {
                     streamUrl = "",
                     logoUrl = o.str("cover"),
                     category = cats[o.str("category_id")] ?: "Series",
-                    section = Section.SERIES
+                    section = Section.SERIES,
+                    added = o.str("last_modified")?.toLongOrNull() ?: 0
                 )
             )
         }
@@ -135,7 +136,8 @@ object XtreamClient {
                     streamUrl = "${ctx.host}/movie/${ctx.user}/${ctx.pass}/$id.$ext",
                     logoUrl = o.str("stream_icon") ?: o.str("cover"),
                     category = cats[o.str("category_id")] ?: "VOD",
-                    section = Section.MOVIES
+                    section = Section.MOVIES,
+                    added = o.str("added")?.toLongOrNull() ?: 0
                 )
             )
         }

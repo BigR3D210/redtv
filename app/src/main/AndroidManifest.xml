@@ -43,6 +43,10 @@
             android:screenOrientation="landscape"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout" />
 
+        <activity android:name=".ui.CastActivity" android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout" />
+
         <activity android:name=".ui.PlayerActivity" android:exported="false"
             android:screenOrientation="landscape"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout"

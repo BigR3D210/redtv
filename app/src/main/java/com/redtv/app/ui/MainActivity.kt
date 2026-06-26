@@ -194,12 +194,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSettingsMenu() {
-        val items = arrayOf("Edit source on TV", "Edit from laptop (pairing)", "Check for updates")
+        val items = arrayOf("Edit source on TV", "Edit from laptop (pairing)", "Cast to TV", "Check for updates")
         AlertDialog.Builder(this).setTitle(R.string.settings).setItems(items) { _, which ->
             when (which) {
                 0 -> startActivity(Intent(this, SetupActivity::class.java))
                 1 -> startActivity(Intent(this, EditOnLaptopActivity::class.java))
-                2 -> checkForUpdate(silent = false)
+                2 -> startActivity(Intent(this, CastActivity::class.java))
+                3 -> checkForUpdate(silent = false)
             }
         }.show()
     }
