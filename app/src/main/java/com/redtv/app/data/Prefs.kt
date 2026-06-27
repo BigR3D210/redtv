@@ -58,6 +58,13 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_DEDUP, false)
         set(v) = sp.edit().putBoolean(KEY_DEDUP, v).apply()
 
+    // ---------- Sort mode (per section) ----------
+
+    fun sortMode(section: String): String = sp.getString("sort_$section", "default") ?: "default"
+
+    fun setSortMode(section: String, mode: String) =
+        sp.edit().putString("sort_$section", mode).apply()
+
     // ---------- Hidden channels ----------
 
     fun hidden(): MutableSet<String> =

@@ -41,7 +41,8 @@ data class Channel(
     val epgChannelId: String? = null,
     val number: Int? = null,
     val section: String = Section.LIVE,
-    val added: Long = 0
+    val added: Long = 0,
+    val rating: Double = 0.0
 )
 
 data class SourceProfile(

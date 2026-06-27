@@ -59,7 +59,7 @@ class GuideAdapter(
             holder.logo.setBackgroundResource(R.drawable.logo_placeholder)
         }
 
-        val (nowProg, _) = ContentRepository.nowAndNext(ch.epgChannelId)
+        val (nowProg, _) = ContentRepository.nowNextForChannel(ch)
         holder.now.text = nowProg?.title ?: ch.category
 
         holder.itemView.setOnFocusChangeListener { _, hasFocus ->

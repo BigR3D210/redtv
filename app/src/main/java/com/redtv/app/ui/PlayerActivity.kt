@@ -8,6 +8,7 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -25,6 +26,7 @@ import com.redtv.app.data.Prefs
 import com.redtv.app.databinding.ActivityPlayerBinding
 import com.redtv.app.model.Channel
 import com.redtv.app.net.Http
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -100,7 +102,7 @@ class PlayerActivity : AppCompatActivity() {
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 b.buffering.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
-                if (state == Player.STATE_ENDED) maybeAutoplayNext()
+                if (state == Player.STATE_ENDED) { clearResumeIfFinished(); maybeAutoplayNext() }
             }
             override fun onPlayerError(error: PlaybackException) {
                 b.errorText.text = "Playback error: ${error.errorCodeName}\n${error.message ?: ""}"
@@ -139,6 +141,10 @@ class PlayerActivity : AppCompatActivity() {
             prefs.lastChannelId = ch.id
         }
         showInfo(ch)
+        if (ch.id.startsWith("live_")) lifecycleScope.launch {
+            ContentRepository.ensureShortEpg(ch)
+            showInfo(ch)
+        }
     }
 
     // ---- Series autoplay ("Up next" with countdown) ----
@@ -178,7 +184,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun showInfo(ch: Channel) {
         b.infoName.text = ch.name
-        val (now, next) = ContentRepository.nowAndNext(ch.epgChannelId)
+        val (now, next) = ContentRepository.nowNextForChannel(ch)
         if (now != null) {
             b.infoNow.visibility = View.VISIBLE
             b.infoNow.text = "Now: ${now.title}  (${timeFmt.format(Date(now.startMillis))})"
@@ -251,6 +257,11 @@ class PlayerActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_INFO -> { currentChannel()?.let { showInfo(it) }; true }
             else -> super.onKeyDown(keyCode, event)
         }
+    }
+
+    private fun clearResumeIfFinished() {
+        val ch = currentChannel() ?: return
+        if (ch.id.startsWith("movie_") || ch.id.startsWith("ep_")) prefs.setResumePosition(ch.id, 0)
     }
 
     private fun saveResume() {

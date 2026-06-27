@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity() {
         Section.LIVE, Section.MOVIES, Section.SERIES, Section.SPORTS, "fav", "recent", "continue"
     )
     private val sectionLabels = listOf(
-        "Live TV", "Movies", "Series", "Sports/PPV", "Favorites", "Recent", "Continue"
+        "Live TV", "Movies", "Series", "Sports/PPV", "Favorites", "Recent", "Continue Watching"
     )
     private var currentSection = Section.LIVE
     // index 0 = "All" (null); others are raw category names
@@ -86,6 +86,7 @@ class MainActivity : AppCompatActivity() {
 
         b.btnSettings.setOnClickListener { showSettingsMenu() }
         b.btnSources.setOnClickListener { showSourcePicker() }
+        b.btnSort.setOnClickListener { showSortMenu() }
         b.search.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) = applyFilter()
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -189,6 +190,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             result = applyPins(result)
         }
+        result = applySort(result)
         displayed = result
         listAdapter.submit(result)
         resetPreview()
@@ -224,6 +226,10 @@ class MainActivity : AppCompatActivity() {
     private fun onFocusItem(ch: Channel) {
         lastFocused = ch
         updatePreviewInfo(ch)
+        if (ch.id.startsWith("live_")) lifecycleScope.launch {
+            ContentRepository.ensureShortEpg(ch)
+            if (lastFocused?.id == ch.id) updatePreviewInfo(ch)
+        }
         handler.removeCallbacks(previewRunnable)
         if (ch.id.startsWith("series_") || ch.streamUrl.isBlank()) {
             // A series folder has no single stream — show info, no video.
@@ -239,7 +245,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updatePreviewInfo(ch: Channel) {
         b.previewName.text = ch.name
-        val (now, next) = ContentRepository.nowAndNext(ch.epgChannelId)
+        val (now, next) = ContentRepository.nowNextForChannel(ch)
         b.previewNow.text = when {
             now != null -> "Now: ${now.title}"
             ch.number != null -> "Channel ${ch.number}"
@@ -318,6 +324,29 @@ class MainActivity : AppCompatActivity() {
             }
             applyFilter()
         }.show()
+    }
+
+    private fun showSortMenu() {
+        val labels = arrayOf("Default", "Name A-Z", "Name Z-A", "Newest added", "Oldest added", "Top rated")
+        val modes = arrayOf("default", "az", "za", "newest", "oldest", "rating")
+        val checked = modes.indexOf(prefs.sortMode(currentSection)).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Sort " + sectionLabels[currentSectionIndex()])
+            .setSingleChoiceItems(labels, checked) { d, which ->
+                prefs.setSortMode(currentSection, modes[which])
+                applyFilter()
+                d.dismiss()
+            }
+            .show()
+    }
+
+    private fun applySort(list: List<Channel>): List<Channel> = when (prefs.sortMode(currentSection)) {
+        "az" -> list.sortedBy { it.name.lowercase() }
+        "za" -> list.sortedByDescending { it.name.lowercase() }
+        "newest" -> list.sortedByDescending { it.added }
+        "oldest" -> list.sortedBy { it.added }
+        "rating" -> list.sortedByDescending { it.rating }
+        else -> list
     }
 
     private fun showSettingsMenu() {

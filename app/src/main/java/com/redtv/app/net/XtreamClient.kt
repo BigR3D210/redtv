@@ -4,6 +4,7 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.redtv.app.model.Channel
+import com.redtv.app.model.EpgProgram
 import com.redtv.app.model.Section
 import com.redtv.app.model.Source
 import java.net.URLEncoder
@@ -53,7 +54,8 @@ object XtreamClient {
                     logoUrl = o.str("cover"),
                     category = cats[o.str("category_id")] ?: "Series",
                     section = Section.SERIES,
-                    added = o.str("last_modified")?.toLongOrNull() ?: 0
+                    added = o.str("last_modified")?.toLongOrNull() ?: 0,
+                    rating = o.str("rating_5based")?.toDoubleOrNull() ?: o.str("rating")?.toDoubleOrNull() ?: 0.0
                 )
             )
         }
@@ -86,6 +88,36 @@ object XtreamClient {
             }
         }
         return out
+    }
+
+    /** Current/next programs for one live channel, straight from the Xtream EPG (no XMLTV needed). */
+    fun loadShortEpg(source: Source, streamId: String): List<EpgProgram> {
+        val ctx = ctx(source)
+        val json = get("${ctx.base}&action=get_short_epg&stream_id=$streamId&limit=4")
+        val root = JsonParser.parseString(json).asJsonObject
+        val arr = root.getAsJsonArray("epg_listings") ?: return emptyList()
+        val out = ArrayList<EpgProgram>(arr.size())
+        for (e in arr) {
+            val o = e.asJsonObject
+            val start = o.str("start_timestamp")?.toLongOrNull() ?: continue
+            val stop = o.str("stop_timestamp")?.toLongOrNull() ?: continue
+            out.add(
+                EpgProgram(
+                    channelId = streamId,
+                    title = decodeB64(o.str("title")),
+                    startMillis = start * 1000,
+                    stopMillis = stop * 1000,
+                    description = decodeB64(o.str("description"))
+                )
+            )
+        }
+        return out
+    }
+
+    private fun decodeB64(s: String?): String {
+        if (s.isNullOrBlank()) return ""
+        return runCatching { String(android.util.Base64.decode(s, android.util.Base64.DEFAULT)).trim() }
+            .getOrDefault(s)
     }
 
     // ---- internals ----
@@ -141,7 +173,8 @@ object XtreamClient {
                     logoUrl = o.str("stream_icon") ?: o.str("cover"),
                     category = cats[o.str("category_id")] ?: "VOD",
                     section = Section.MOVIES,
-                    added = o.str("added")?.toLongOrNull() ?: 0
+                    added = o.str("added")?.toLongOrNull() ?: 0,
+                    rating = o.str("rating_5based")?.toDoubleOrNull() ?: o.str("rating")?.toDoubleOrNull() ?: 0.0
                 )
             )
         }

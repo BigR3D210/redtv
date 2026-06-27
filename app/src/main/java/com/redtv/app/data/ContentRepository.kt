@@ -30,6 +30,9 @@ object ContentRepository {
     /** Episodes of the series currently being browsed (so the player can resolve them). */
     @Volatile var currentEpisodes: List<Channel> = emptyList()
 
+    /** Per-channel now/next pulled on demand from the Xtream EPG (keyed by channel id). */
+    private val shortEpg = HashMap<String, List<EpgProgram>>()
+
     /** Set when the config changes from the laptop editor, so the home reloads. */
     @Volatile var dirty = false
 
@@ -62,6 +65,7 @@ object ContentRepository {
     suspend fun reload(prefs: Prefs) = withContext(Dispatchers.IO) {
         val cfg = resolveConfig(prefs)
         config = cfg
+        shortEpg.clear()
         currentSource = cfg.source
         Http.userAgent = cfg.userAgent?.takeIf { it.isNotBlank() } ?: Http.userAgent
 
@@ -122,6 +126,27 @@ object ContentRepository {
             }.getOrElse { e -> prefs.cachedConfig ?: throw e }
         }
         return profile.manual ?: error("No source configured")
+    }
+
+    /** Now/next for a channel: prefers freshly-fetched Xtream EPG, falls back to XMLTV. */
+    fun nowNextForChannel(ch: Channel): Pair<EpgProgram?, EpgProgram?> {
+        val list = shortEpg[ch.id]
+        if (list != null && list.isNotEmpty()) {
+            val t = System.currentTimeMillis()
+            val cur = list.firstOrNull { t in it.startMillis until it.stopMillis }
+            val nxt = list.firstOrNull { it.startMillis >= t }
+            return cur to nxt
+        }
+        return nowAndNext(ch.epgChannelId)
+    }
+
+    /** Fetch and cache the Xtream EPG for one live channel (no-op if already cached or not Xtream). */
+    suspend fun ensureShortEpg(ch: Channel) = withContext(Dispatchers.IO) {
+        if (!ch.id.startsWith("live_") || shortEpg.containsKey(ch.id)) return@withContext
+        val src = currentSource ?: return@withContext
+        if (!src.isXtream()) return@withContext
+        val streamId = ch.id.removePrefix("live_")
+        shortEpg[ch.id] = runCatching { XtreamClient.loadShortEpg(src, streamId) }.getOrDefault(emptyList())
     }
 
     fun nowAndNext(epgChannelId: String?): Pair<EpgProgram?, EpgProgram?> {
