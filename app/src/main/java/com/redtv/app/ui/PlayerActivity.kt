@@ -19,6 +19,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.TrackSelectionDialogBuilder
 import com.redtv.app.data.ContentRepository
@@ -44,6 +45,7 @@ class PlayerActivity : AppCompatActivity() {
     private val timeFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
     private val hideInfo = Runnable { b.infoBar.visibility = View.GONE }
     private var nextTimer: CountDownTimer? = null
+    private var retryCount = 0
 
     private val resizeModes = intArrayOf(
         AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -91,20 +93,30 @@ class PlayerActivity : AppCompatActivity() {
         val dataSourceFactory = DefaultDataSource.Factory(this, httpFactory)
 
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(15_000, 60_000, 2_500, 5_000)
+            .setBufferDurationsMs(15_000, 30_000, 2_000, 4_000)
             .build()
 
         val p = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(dataSourceFactory)
+                    .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6))
+            )
             .setLoadControl(loadControl)
             .build()
 
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 b.buffering.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                if (state == Player.STATE_READY) { retryCount = 0; b.errorText.visibility = View.GONE }
                 if (state == Player.STATE_ENDED) { clearResumeIfFinished(); maybeAutoplayNext() }
             }
             override fun onPlayerError(error: PlaybackException) {
+                if (isRecoverable(error) && retryCount < MAX_RETRIES) {
+                    retryCount++
+                    b.buffering.visibility = View.VISIBLE
+                    b.playerView.postDelayed({ recoverPlayback() }, 1500L)
+                    return
+                }
                 b.errorText.text = "Playback error: ${error.errorCodeName}\n${error.message ?: ""}"
                 b.errorText.visibility = View.VISIBLE
             }
@@ -112,6 +124,26 @@ class PlayerActivity : AppCompatActivity() {
         b.playerView.player = p
         b.playerView.resizeMode = resizeModes[resizeIndex]
         player = p
+    }
+
+    /** Re-fetch a fresh manifest/token and resume; for live, jump back to the live edge. */
+    private fun recoverPlayback() {
+        val p = player ?: return
+        val ch = currentChannel()
+        if (ch != null && ch.id.startsWith("live_")) p.seekToDefaultPosition()
+        p.prepare()
+        p.playWhenReady = true
+    }
+
+    /** Transient network/HTTP errors are worth retrying; format/DRM errors are not. */
+    private fun isRecoverable(e: PlaybackException): Boolean = when (e.errorCode) {
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+        PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+        PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
+        PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+        PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE -> true
+        else -> false
     }
 
     private fun currentChannel(): Channel? =
@@ -285,5 +317,6 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_INDEX = "index"
         const val EXTRA_URL = "url"
         const val EXTRA_NAME = "name"
+        private const val MAX_RETRIES = 5
     }
 }

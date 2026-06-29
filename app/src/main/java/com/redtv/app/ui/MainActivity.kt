@@ -12,6 +12,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
@@ -55,6 +56,7 @@ class MainActivity : AppCompatActivity() {
     // ---- Live preview (right pane) ----
     private var previewPlayer: ExoPlayer? = null
     private var pending: Channel? = null
+    private var previewRetry = 0
     private var lastFocused: Channel? = null
     private val timeFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
     private val handler = Handler(Looper.getMainLooper())
@@ -217,6 +219,16 @@ class MainActivity : AppCompatActivity() {
         p.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 b.previewBuffering.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                if (state == Player.STATE_READY) previewRetry = 0
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                if (previewRetry < 3) {
+                    previewRetry++
+                    b.preview.postDelayed({
+                        val pp = previewPlayer ?: return@postDelayed
+                        pp.seekToDefaultPosition(); pp.prepare(); pp.playWhenReady = true
+                    }, 1500L)
+                }
             }
         })
         b.preview.player = p
@@ -267,6 +279,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun resetPreview() {
         handler.removeCallbacks(previewRunnable)
+        previewRetry = 0
         previewPlayer?.stop()
         b.previewBuffering.visibility = View.GONE
         b.previewIdle.text = "Pause on a channel to preview"
@@ -295,6 +308,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openItem(ch: Channel) {
+        // Free the preview connection first so single-stream IPTV accounts aren't double-connected.
+        handler.removeCallbacks(previewRunnable)
+        previewPlayer?.release(); previewPlayer = null
         if (ch.id.startsWith("series_")) {
             startActivity(Intent(this, SeriesActivity::class.java)
                 .putExtra(SeriesActivity.EXTRA_SERIES_ID, ch.id.removePrefix("series_"))
